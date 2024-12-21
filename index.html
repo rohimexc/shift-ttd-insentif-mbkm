@@ -7,13 +7,51 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@latest" type="text/javascript"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@latest/dist/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #description {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        #loader {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #555;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table th, table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f4f4f4;
+        }
+        #dataTable_filter {
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
     <h1>Data Jadwal Shift</h1>
     <div id="description">
         <p>Jika berhalangan hadir pada shift sesuai nomor urut, maka dapat hadir pada shift susulan: <strong>Pukul 17.00 - 18.00 WITA</strong></p>
     </div>
-    <table id="dataTable">
+    <div id="loader">Memuat data...</div>
+    <table id="dataTable" style="display: none;">
         <thead>
             <tr>
                 <th>Nomor Urut</th>
@@ -26,63 +64,79 @@
     </table>
 
     <script>
-        // URL Google Sheet dalam format CSV
+        // Konfigurasi API Google Sheets
         const sheetID = "1dCUa-4Xh7_f_VFQS2XCke5jomrhoc4Vw";
-        const sheetName = "ALL";
-        const range = "A14:C819";
-        const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetID}/gviz/tq?tqx=out:csv&sheet=${sheetName}&range=${range}`;
+        const range = "ALL!A14:C819"; // Format: SheetName!Range
+        const apiKey = "AIzaSyDRZLtl5T800fPBH1-OIKpElBPDgc6bIoU";
+        const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetID}/values/${range}?key=${apiKey}`;
+    
+        // Ambil data dari Google Sheets API
+        async function fetchData() {
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error("Gagal mengambil data.");
+                const result = await response.json();
+    
+                // Proses data
+                const rows = result.values.slice(1); // Skip header row
+                let tableRows = "";
+    
+                rows.forEach((cols) => {
+                    const nomorUrut = parseInt(cols[0]);
+                    const nim = cols[1];
+                    const nama = cols[2];
+                    let jadwalShift = "";
+    
+                    // Tentukan jadwal shift berdasarkan nomor urut
+                    if (nomorUrut >= 201 && nomorUrut <= 400) {
+                        jadwalShift = "Pukul 08.00 - 10.00 WITA";
+                    } else if (nomorUrut >= 401 && nomorUrut <= 600) {
+                        jadwalShift = "Pukul 10.00 - 12.00 WITA";
+                    } else if (nomorUrut >= 601 && nomorUrut <= 800) {
+                        jadwalShift = "Pukul 13.00 - 15.00 WITA";
+                    } else if (nomorUrut >= 1 && nomorUrut <= 200) {
+                        jadwalShift = "Pukul 15.00 - 17.00 WITA";
+                    }
 
-        // Ambil data dan render tabel
-        $(document).ready(function () {
-            $.ajax({
-                url: apiUrl,
-                dataType: "text",
-                success: function (data) {
-                    const rows = data.split("\n").slice(1); // Skip header
-                    let tableRows = "";
-
-                    rows.forEach((row, index) => {
-                        const cols = row.split(",");
-                        const nomorUrut = parseInt(cols[0].trim()); // Bersihkan data
-                        const nim = cols[1] ? cols[1].trim() : "-";
-                        const nama = cols[2] ? cols[2].trim() : "-";
-                        let jadwalShift = "";
-
-                        // Tentukan jadwal shift berdasarkan nomor urut
-                        if (!isNaN(nomorUrut)) {
-                            if (nomorUrut >= 201 && nomorUrut <= 400) {
-                                jadwalShift = "Pukul 08.00 - 10.00 WITA";
-                            } else if (nomorUrut >= 401 && nomorUrut <= 600) {
-                                jadwalShift = "Pukul 10.00 - 12.00 WITA";
-                            } else if (nomorUrut >= 601 && nomorUrut <= 800) {
-                                jadwalShift = "Pukul 13.00 - 15.00 WITA";
-                            } else if (nomorUrut >= 1 && nomorUrut <= 200) {
-                                jadwalShift = "Pukul 15.00 - 17.00 WITA";
-                            }
-
-                            // Tambahkan baris ke tabel
-                            tableRows += `
-                                <tr>
-                                    <td>${nomorUrut}</td>
-                                    <td>${nim}</td>
-                                    <td>${nama}</td>
-                                    <td>${jadwalShift}</td>
-                                </tr>
-                            `;
-                        }
-                    });
-
-                    $("#dataTable tbody").html(tableRows);
-
-                    // Tambahkan fitur search dengan DataTable library
-                    new simpleDatatables.DataTable("#dataTable");
-                },
-                error: function (xhr, status, error) {
-                    console.error("Error fetching data:", error);
-                    alert("Gagal mengambil data dari Google Sheet. Pastikan URL sheet benar dan bisa diakses.");
+                    // Tambahkan baris ke tabel
+                    if (nomorUrut) {
+                        tableRows += `
+                            <tr>
+                                <td>${nomorUrut}</td>
+                                <td>${nim || "-"}</td>
+                                <td>${nama || "-"}</td>
+                                <td>${jadwalShift}</td>
+                            </tr>
+                        `;
+                    }
+                });
+    
+                if (!rows.length) {
+                    tableRows = "<tr><td colspan='4' style='text-align: center;'>Data tidak tersedia</td></tr>";
                 }
-            });
-        });
+    
+                // Render data ke tabel
+                document.querySelector("#dataTable tbody").innerHTML = tableRows;
+    
+                // Tampilkan tabel dan sembunyikan loader
+                document.querySelector("#loader").style.display = "none";
+                document.querySelector("#dataTable").style.display = "table";
+    
+                // Tambahkan fitur search menggunakan DataTable library
+                const dataTable = new simpleDatatables.DataTable("#dataTable");
+    
+                // Menambahkan fitur search secara otomatis
+                document.getElementById("dataTable_filter").style.display = "block";
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Gagal mengambil data dari Google Sheets API.");
+                document.querySelector("#loader").textContent = "Gagal memuat data.";
+            }
+        }
+    
+        // Panggil fungsi fetchData saat halaman dimuat
+        document.addEventListener("DOMContentLoaded", fetchData);
     </script>
+    
 </body>
 </html>
